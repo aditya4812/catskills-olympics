@@ -1,0 +1,11 @@
+{
+  "name": "(Cat)Skill Games",
+  "short_name": "(Cat)Skill",
+  "description": "Athens, NY — July 29–Aug 1",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#101B33",
+  "theme_color": "#101B33"
+}

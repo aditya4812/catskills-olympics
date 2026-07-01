@@ -1,0 +1,632 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1">
+  <title>(Cat)Skill Games</title>
+
+  <!-- PWA -->
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#101B33">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="(Cat)Skill Games">
+
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Space+Mono:wght@400;700&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+  <!-- Tailwind (Play CDN — full JIT in browser) -->
+  <script src="https://cdn.tailwindcss.com/3.4.16"></script>
+
+  <style>
+    *, *::before, *::after { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; background: #101B33; }
+    .scoreboard-digit { font-family: 'Space Mono', monospace; font-weight: 700; letter-spacing: -0.02em; }
+    .display { font-family: 'Bebas Neue', sans-serif; letter-spacing: 0.02em; }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+
+  <!-- React 18 UMD (pinned to exact patch so a CDN roll-forward can't break the build) -->
+  <script crossorigin src="https://unpkg.com/react@18.3.1/umd/react.production.min.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js"></script>
+  <!-- Babel standalone for JSX transpilation (pinned: unpinned versions switched the
+       default preset-react runtime to "automatic", which broke the page) -->
+  <script src="https://unpkg.com/@babel/standalone@7.26.4/babel.min.js"></script>
+
+  <!-- Force the CLASSIC JSX runtime (React.createElement). Newer @babel/standalone
+       defaults preset-react to the "automatic" runtime, which emits
+       `import { jsx } from "react/jsx-runtime"` at the top of the compiled output.
+       That import lands in a plain (non-module) <script> and throws
+       "Cannot use import statement outside a module", blanking the page. -->
+  <script>
+    Babel.registerPreset("react-classic", {
+      presets: [[Babel.availablePresets["react"], { runtime: "classic" }]],
+    });
+  </script>
+
+  <script type="text/babel" data-presets="react-classic">
+    // ── Globals from UMD bundles ────────────────────────────────────────────
+    const { useState, useEffect } = React;
+
+    // ── Inline SVG icons (replaces lucide-react to avoid CDN/ESM issues) ─────
+    // All paths are from Lucide (ISC licensed), inlined as small components.
+    function Ico({ children, size = 24, color = "currentColor", ...rest }) {
+      return (
+        <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size}
+          viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2"
+          strokeLinecap="round" strokeLinejoin="round" {...rest}>
+          {children}
+        </svg>
+      );
+    }
+    const Trophy = p => <Ico {...p}><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/></Ico>;
+    const Beer   = p => <Ico {...p}><path d="M17 11h1a3 3 0 0 1 0 6h-1"/><path d="M9 12v6"/><path d="M13 12v6"/><path d="M14 7.5c-1 0-1.44.5-3 .5s-2-.5-3-.5-1.72.5-2.5.5a2.5 2.5 0 0 1 0-5c.78 0 1.57.5 2.5.5S9.44 3 11 3s2 .5 3 .5 1.72-.5 2.5-.5a2.5 2.5 0 0 1 0 5c-.78 0-1.5-.5-2.5-.5Z"/><path d="M5 8v10a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V8"/></Ico>;
+    const Flag   = p => <Ico {...p}><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" x2="4" y1="22" y2="15"/></Ico>;
+    const Waves  = p => <Ico {...p}><path d="M2 6c.6.5 1.2 1 2.5 1C7 7 7 5 9.5 5c2.6 0 2.4 2 5 2 2.5 0 2.5-2 5-2 1.3 0 1.9.5 2.5 1"/><path d="M2 12c.6.5 1.2 1 2.5 1 2.5 0 2.5-2 5-2 2.6 0 2.4 2 5 2 2.5 0 2.5-2 5-2 1.3 0 1.9.5 2.5 1"/><path d="M2 18c.6.5 1.2 1 2.5 1 2.5 0 2.5-2 5-2 2.6 0 2.4 2 5 2 2.5 0 2.5-2 5-2 1.3 0 1.9.5 2.5 1"/></Ico>;
+    const Coins  = p => <Ico {...p}><circle cx="8" cy="8" r="6"/><path d="M18.09 10.37A6 6 0 1 1 10.34 18"/><path d="M7 6h1v4"/><path d="m16.71 13.88.7.71-2.82 2.82"/></Ico>;
+    const Target = p => <Ico {...p}><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></Ico>;
+    const Zap    = p => <Ico {...p}><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></Ico>;
+    const Crown  = p => <Ico {...p}><path d="M11.562 3.266a.5.5 0 0 1 .876 0L15.39 8.87a1 1 0 0 0 1.516.294L21.183 5.5a.5.5 0 0 1 .798.519l-2.834 10.246a1 1 0 0 1-.956.734H5.81a1 1 0 0 1-.957-.734L2.02 6.02a.5.5 0 0 1 .798-.519l4.276 3.664a1 1 0 0 0 1.516-.294z"/><path d="M5 21h14"/></Ico>;
+    const Swords = p => <Ico {...p}><polyline points="14.5 17.5 3 6 3 3 6 3 17.5 14.5"/><line x1="13" x2="19" y1="19" y2="13"/><line x1="16" x2="20" y1="16" y2="20"/><line x1="19" x2="21" y1="21" y2="19"/><polyline points="14.5 6.5 18 3 21 3 21 6 17.5 9.5"/><line x1="5" x2="9" y1="14" y2="18"/><line x1="7" x2="4" y1="17" y2="20"/><line x1="3" x2="5" y1="19" y2="21"/></Ico>;
+    const Dices  = p => <Ico {...p}><rect width="12" height="12" x="2" y="10" rx="2" ry="2"/><path d="m17.92 14 3.5-3.5a2.24 2.24 0 0 0 0-3l-5-4.92a2.24 2.24 0 0 0-3 0L10 6"/><path d="M6 18h.01"/><path d="M10 14h.01"/><path d="M15 6h.01"/><path d="M18 9h.01"/></Ico>;
+    const ChevronDown = p => <Ico {...p}><path d="m6 9 6 6 6-6"/></Ico>;
+    const Lock   = p => <Ico {...p}><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></Ico>;
+    const RotateCcw = p => <Ico {...p}><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></Ico>;
+    const Check  = p => <Ico {...p}><path d="M20 6 9 17l-5-5"/></Ico>;
+    const Info   = p => <Ico {...p}><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></Ico>;
+
+    // ── localStorage helpers ────────────────────────────────────────────────
+    const STORAGE_KEY = "catskill-games-v1";
+    function loadSaved() {
+      try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}"); }
+      catch { return {}; }
+    }
+    function persist(state) {
+      try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }
+      catch {}
+    }
+
+    // ── Data ────────────────────────────────────────────────────────────────
+    const NAVY   = "#101B33";
+    const NAVY_2 = "#16213F";
+    const NAVY_3 = "#1E2C50";
+    const GOLD   = "#F2A93B";
+    const RED    = "#BD4439";
+    const INK    = "#9FAAC7";
+
+    const PLAYERS = ["Ankur", "Varun", "Rohit", "Ani", "Sahil", "Vivek", "Aditya"];
+    const WIN_POINTS = 3;
+
+    const SEASON = [
+      { id: 1, game: "Flip Cup",            format: "3v3", active: ["Varun","Aditya","Ani","Vivek","Sahil","Rohit"],          bench: ["Ankur"] },
+      { id: 2, game: "Civil War",           format: "3v3", active: ["Ankur","Varun","Ani","Vivek","Sahil","Rohit"],           bench: ["Aditya"] },
+      { id: 3, game: "Beer Pong",           format: "3v3", active: ["Ankur","Varun","Aditya","Vivek","Sahil","Rohit"],        bench: ["Ani"] },
+      { id: 4, game: "Beer Pong -- Rematch",format: "3v3", active: ["Ankur","Varun","Aditya","Ani","Vivek","Rohit"],          bench: ["Sahil"] },
+      { id: 5, game: "Bobsled",             format: "3v3", active: ["Ankur","Varun","Aditya","Ani","Sahil","Rohit"],          bench: ["Vivek"] },
+      { id: 6, game: "Beer Die -- Match 1", format: "2v2", active: ["Ankur","Varun","Aditya","Ani"],                          bench: ["Vivek","Sahil","Rohit"] },
+      { id: 7, game: "Beer Die -- Match 2", format: "2v2", active: ["Aditya","Ani","Vivek","Sahil"],                          bench: ["Ankur","Varun","Rohit"] },
+      { id: 8, game: "Beer Die -- Match 3", format: "2v2", active: ["Ankur","Vivek","Sahil","Rohit"],                         bench: ["Varun","Aditya","Ani"] },
+    ];
+
+    const RULES = [
+      { icon: Beer,   name: "Flip Cup",  format: "3v3 relay",
+        rule: "Each player chugs their cup, then flips it upside down with a flick of the rim. The next teammate can't start until the cup before them lands. First team to flip every cup in the line wins." },
+      { icon: Swords, name: "Civil War", format: "3v3, no turns",
+        rule: "Each player stands behind their own row of three cups with their own ball. There's no turn order -- everyone shoots continuously and retrieves their own rebounds. First team to clear all nine cups wins." },
+      { icon: Target, name: "Beer Pong", format: "3v3 house variant",
+        rule: "Standard 10-cup triangle on each side. Since this is 3 players per team instead of the usual 2, each turn rotates through all three teammates -- three throws before play passes across the table. First team to clear the opposing rack wins." },
+      { icon: Dices,  name: "Bobsled",   format: "3v3 relay",
+        rule: "Cups are set up like a relay line. Each team has four rotating roles -- Shooter sinks the ball, Drinker chugs the cup once it's made, Bouncer bounces the ball into their own personal cup, Flipper flips their empty cup. After every made cup, roles rotate one spot down the line. First team through their whole line wins." },
+      { icon: Coins,  name: "Beer Die",  format: "2v2, run 3x",
+        rule: "Each player has a cup at their corner of the table. Underhand toss the die at the opponent's side. A toss that lands past their cups and hits the floor scores 1, hitting a cup then the floor scores 2, sinking the die directly in a cup scores 3. Run as three separate matches so everyone plays at least once, nobody more than twice." },
+    ];
+
+    const PLAYOFF_ROUNDS = [
+      { round: 1, n: 7, game: "Solo Flip Cup Relay",    icon: Beer,
+        rule: "Each player gets their own line of cups -- no teammates. On 'go', chug the first cup, flip it with a flick of the rim, then move to the next. You can't touch the next cup until the one before it lands flipped. First person through their whole line raises a hand. Ranked fastest to slowest." },
+      { round: 2, n: 6, game: "Kayak Relay",            icon: Waves,
+        rule: "Six single kayaks line up at the dock. On 'go', paddle out to a marked point and back -- a straight there-and-back sprint, no help, no passengers. First kayak back to the dock wins. Ranked by finish order all the way down." },
+      { round: 3, n: 5, game: "Quarters",               icon: Coins,
+        rule: "Players take turns bouncing a quarter off the table, trying to land it in a cup in the middle. Everyone gets the same number of attempts in rotation. Whoever lands the most quarters in the cup wins. Ranked by total makes." },
+      { round: 4, n: 4, game: "Cards in the Hat",       icon: Target,
+        rule: "Stand behind a marked line with a hat or bucket set up a few feet out. Each player throws the same number of cards one at a time -- flick them flat like a frisbee -- trying to land them in the target. Ranked by total cards landed." },
+      { round: 5, n: 3, game: "Egyptian Rat Screw",     icon: Zap,
+        rule: "Deal the deck out evenly. Players take turns flipping their top card into a shared pile. If a face card or Ace appears, the next player gets limited tries to flip another face card or Ace (4 for Ace, 3 for King, 2 for Queen, 1 for Jack) or the previous player wins the pile. Slap the pile for doubles, sandwiches, or top matching the bottom. First player out of cards is eliminated." },
+      { round: 6, n: 2, game: "1v1 Beer Pong -- FINAL", icon: Crown,
+        rule: "Standard 10-cup triangle on each side, head-to-head, no teammates. Take turns throwing one ball each. Land it in a cup and your opponent drinks it and pulls that cup. First player to clear every cup on the other side wins the whole tournament outright." },
+    ];
+
+    // ── Helper components ───────────────────────────────────────────────────
+    function Pill({ children, tone = "gold" }) {
+      return (
+        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold tracking-wide"
+          style={{ backgroundColor: tone === "muted" ? NAVY_3 : tone === "red" ? RED : GOLD,
+                   color: tone === "muted" ? INK : NAVY, fontFamily: "'Space Mono', monospace" }}>
+          {children}
+        </span>
+      );
+    }
+
+    function SectionLabel({ children }) {
+      return (
+        <div className="text-xs font-bold tracking-[0.2em] mb-3"
+          style={{ color: GOLD, fontFamily: "'Space Mono', monospace" }}>
+          {children}
+        </div>
+      );
+    }
+
+    function findRule(gameName) {
+      const match = RULES.find(r => gameName.includes(r.name));
+      return match ? match.rule : "";
+    }
+
+    function InfoTip({ text }) {
+      const [open, setOpen] = useState(false);
+      if (!text) return null;
+      return (
+        <span className="relative inline-block"
+          onMouseEnter={() => setOpen(true)}
+          onMouseLeave={() => setOpen(false)}>
+          <button onClick={e => { e.stopPropagation(); setOpen(o => !o); }}
+            className="flex items-center justify-center w-5 h-5 rounded-full flex-shrink-0"
+            style={{ backgroundColor: NAVY_3 }} aria-label="Game details">
+            <Info size={12} color={INK} />
+          </button>
+          {open && (
+            <div className="absolute z-30 top-full left-0 mt-2 w-72 p-3 rounded-lg text-xs leading-relaxed"
+              style={{ backgroundColor: NAVY_3, color: INK, border: `1px solid ${GOLD}`,
+                       boxShadow: "0 8px 24px rgba(0,0,0,0.4)" }}>
+              {text}
+            </div>
+          )}
+        </span>
+      );
+    }
+
+    // ── Main component ──────────────────────────────────────────────────────
+    function CatSkillGames() {
+      // Initialise from localStorage on first render
+      const saved = loadSaved();
+
+      const [tab,            setTab]            = useState("schedule");
+      const [openRule,       setOpenRule]       = useState(0);
+      const [openPlayoffRule,setOpenPlayoffRule]= useState(-1);
+      const [regularResults, setRegularResults] = useState(saved.regularResults || {});
+      const [playoffOrder,   setPlayoffOrder]   = useState(saved.playoffOrder   || {});
+      const [finalWinner,    setFinalWinner]    = useState(saved.finalWinner    || null);
+
+      // Sync to localStorage whenever relevant state changes
+      useEffect(() => {
+        persist({ regularResults, playoffOrder, finalWinner });
+      }, [regularResults, playoffOrder, finalWinner]);
+
+      const tabs = [
+        { id: "schedule",  label: "Schedule"   },
+        { id: "rules",     label: "Game Rules"  },
+        { id: "playoffs",  label: "Playoffs"    },
+        { id: "scoreboard",label: "Scoreboard"  },
+      ];
+
+      function toggleWinner(eventId, name) {
+        setRegularResults(prev => {
+          const cur  = prev[eventId] || [];
+          const next = cur.includes(name) ? cur.filter(n => n !== name) : [...cur, name];
+          return { ...prev, [eventId]: next };
+        });
+      }
+
+      function regularSeasonPoints(name) {
+        let pts = 0;
+        SEASON.forEach(ev => {
+          if ((regularResults[ev.id] || []).includes(name)) pts += WIN_POINTS;
+        });
+        return pts;
+      }
+
+      function computePlayoff() {
+        let cumulative = {};
+        PLAYERS.forEach(p => (cumulative[p] = regularSeasonPoints(p)));
+        let alive = [...PLAYERS];
+        let eliminated = [];
+        let roundsResolved = 0;
+        for (let r = 1; r <= 5; r++) {
+          const order = playoffOrder[r];
+          if (!order || order.length !== alive.length) break;
+          const N = alive.length;
+          order.forEach((name, idx) => { cumulative[name] += N - idx; });
+          const sorted = [...alive].sort((a, b) => {
+            const diff = cumulative[a] - cumulative[b];
+            if (diff !== 0) return diff;
+            return regularSeasonPoints(a) - regularSeasonPoints(b);
+          });
+          const out = sorted[0];
+          eliminated.push({ name: out, round: r });
+          alive = alive.filter(n => n !== out);
+          roundsResolved = r;
+        }
+        return { cumulative, eliminated, alive, roundsResolved };
+      }
+
+      const { cumulative, eliminated, alive, roundsResolved } = computePlayoff();
+      const eliminatedNames = eliminated.map(e => e.name);
+      const currentRound = roundsResolved + 1;
+
+      function clickPlayoffPlayer(round, name) {
+        if (round !== currentRound || round > 5) return;
+        setPlayoffOrder(prev => {
+          const cur = prev[round] || [];
+          if (cur.includes(name)) return prev;
+          return { ...prev, [round]: [...cur, name] };
+        });
+      }
+
+      function resetFromRound(round) {
+        setPlayoffOrder(prev => {
+          const next = { ...prev };
+          for (let r = round; r <= 5; r++) delete next[r];
+          return next;
+        });
+        setFinalWinner(null);
+      }
+
+      function resetEverything() {
+        setRegularResults({});
+        setPlayoffOrder({});
+        setFinalWinner(null);
+        try { localStorage.removeItem(STORAGE_KEY); } catch {}
+      }
+
+      return (
+        <div className="w-full min-h-screen" style={{ backgroundColor: NAVY, fontFamily: "'Inter', sans-serif" }}>
+          <div className="max-w-3xl mx-auto px-5 py-10 sm:py-14">
+
+            {/* HEADER */}
+            <div className="text-center mb-10">
+              <div className="inline-flex items-center gap-2 mb-4 px-3 py-1 rounded-full"
+                style={{ backgroundColor: NAVY_3 }}>
+                <Trophy size={14} color={GOLD} />
+                <span className="text-[11px] font-bold tracking-[0.15em]"
+                  style={{ color: INK, fontFamily: "'Space Mono', monospace" }}>
+                  ATHENS, NY &middot; JULY 29 &ndash; AUG 1
+                </span>
+              </div>
+              <h1 className="display text-5xl sm:text-6xl mb-2" style={{ color: "#FFFFFF" }}>
+                (CAT)SKILL GAMES
+              </h1>
+              <p style={{ color: INK }} className="text-sm sm:text-base">
+                Ankur &middot; Varun &middot; Rohit &middot; Ani &middot; Sahil &middot; Vivek &middot; Aditya
+              </p>
+            </div>
+
+            {/* TABS */}
+            <div className="flex flex-wrap justify-center gap-1.5 mb-8">
+              {tabs.map(t => (
+                <button key={t.id} onClick={() => setTab(t.id)}
+                  className="px-3.5 py-2 rounded-lg text-sm font-semibold transition-colors"
+                  style={{ backgroundColor: tab === t.id ? GOLD : NAVY_2,
+                           color: tab === t.id ? NAVY : INK }}>
+                  {t.label}
+                </button>
+              ))}
+            </div>
+
+            {/* ── SCHEDULE ── */}
+            {tab === "schedule" && (
+              <div>
+                <SectionLabel>REGULAR SEASON &middot; TAP THE WINNING SIDE</SectionLabel>
+                <div className="space-y-3">
+                  {SEASON.map(ev => {
+                    const winners = regularResults[ev.id] || [];
+                    return (
+                      <div key={ev.id} className="rounded-xl p-4"
+                        style={{ backgroundColor: NAVY_2, border: `1px solid ${NAVY_3}` }}>
+                        <div className="flex items-center justify-between mb-3">
+                          <div className="flex items-center gap-2">
+                            <span className="scoreboard-digit text-xs" style={{ color: INK }}>{ev.id}</span>
+                            <span className="text-white font-semibold text-sm sm:text-base">{ev.game}</span>
+                            <InfoTip text={findRule(ev.game)} />
+                          </div>
+                          <Pill tone={ev.format === "3v3" ? "gold" : "red"}>{ev.format}</Pill>
+                        </div>
+                        <div className="flex flex-wrap gap-2 mb-2">
+                          {ev.active.map(name => {
+                            const isWinner = winners.includes(name);
+                            return (
+                              <button key={name} onClick={() => toggleWinner(ev.id, name)}
+                                className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm font-semibold transition-colors"
+                                style={{ backgroundColor: isWinner ? GOLD : NAVY_3,
+                                         color: isWinner ? NAVY : "#FFFFFF" }}>
+                                {isWinner && <Check size={13} />}
+                                {name}
+                              </button>
+                            );
+                          })}
+                        </div>
+                        {ev.bench.length > 0 && (
+                          <div className="flex flex-wrap gap-2 items-center">
+                            <span className="text-xs" style={{ color: INK }}>Sitting out:</span>
+                            {ev.bench.map(name => (
+                              <span key={name} className="px-2.5 py-1 rounded-lg text-xs font-medium"
+                                style={{ color: INK, border: `1px solid ${NAVY_3}`, opacity: 0.7 }}>
+                                {name}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* ── GAME RULES ── */}
+            {tab === "rules" && (
+              <div>
+                <SectionLabel>REGULAR SEASON GAMES</SectionLabel>
+                <div className="space-y-2.5 mb-8">
+                  {RULES.map((r, i) => {
+                    const Icon = r.icon;
+                    const open = openRule === i;
+                    return (
+                      <div key={r.name} className="rounded-xl overflow-hidden"
+                        style={{ backgroundColor: NAVY_2, border: `1px solid ${NAVY_3}` }}>
+                        <button onClick={() => setOpenRule(open ? -1 : i)}
+                          className="w-full flex items-center justify-between px-4 py-3.5">
+                          <div className="flex items-center gap-3">
+                            <Icon size={18} color={GOLD} />
+                            <span className="text-white font-semibold text-sm sm:text-base">{r.name}</span>
+                            <span className="hidden sm:inline-block scoreboard-digit text-xs"
+                              style={{ color: INK }}>{r.format}</span>
+                          </div>
+                          <ChevronDown size={18} color={INK}
+                            style={{ transform: open ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.2s" }} />
+                        </button>
+                        {open && (
+                          <div className="px-4 pb-4 pl-[2.6rem]">
+                            <p style={{ color: INK }} className="text-sm leading-relaxed">{r.rule}</p>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+
+                <SectionLabel>PLAYOFF GAMES</SectionLabel>
+                <div className="space-y-2.5">
+                  {PLAYOFF_ROUNDS.map((p, i) => {
+                    const Icon = p.icon;
+                    const open = openPlayoffRule === i;
+                    return (
+                      <div key={p.game} className="rounded-xl overflow-hidden"
+                        style={{ backgroundColor: NAVY_2, border: `1px solid ${NAVY_3}` }}>
+                        <button onClick={() => setOpenPlayoffRule(open ? -1 : i)}
+                          className="w-full flex items-center justify-between px-4 py-3.5">
+                          <div className="flex items-center gap-3">
+                            <Icon size={18} color={GOLD} />
+                            <span className="text-white font-semibold text-sm sm:text-base">{p.game}</span>
+                            <span className="hidden sm:inline-block scoreboard-digit text-xs"
+                              style={{ color: INK }}>{p.n} players</span>
+                          </div>
+                          <ChevronDown size={18} color={INK}
+                            style={{ transform: open ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.2s" }} />
+                        </button>
+                        {open && (
+                          <div className="px-4 pb-4 pl-[2.6rem]">
+                            <p style={{ color: INK }} className="text-sm leading-relaxed">{p.rule}</p>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* ── PLAYOFFS ── */}
+            {tab === "playoffs" && (
+              <div>
+                <SectionLabel>SUDDEN-DEATH INDIVIDUAL LADDER</SectionLabel>
+                <p style={{ color: INK }} className="text-sm leading-relaxed mb-5">
+                  Regular season points carry forward as your starting score. Tap players in finish
+                  order each round -- lowest cumulative total is eliminated. Ties go to whoever had
+                  fewer regular season points.
+                </p>
+                <div className="space-y-3">
+                  {PLAYOFF_ROUNDS.filter(p => p.round <= 5).map(p => {
+                    const Icon = p.icon;
+                    const isPast    = p.round < currentRound;
+                    const isCurrent = p.round === currentRound;
+                    const isFuture  = p.round > currentRound;
+                    const order     = playoffOrder[p.round] || [];
+                    const eligibleThisRound = (() => {
+                      let a = [...PLAYERS];
+                      eliminated.forEach(e => { if (e.round < p.round) a = a.filter(n => n !== e.name); });
+                      return a;
+                    })();
+                    const eliminatedThisRound = eliminated.find(e => e.round === p.round);
+                    return (
+                      <div key={p.round} className="rounded-xl p-4"
+                        style={{ backgroundColor: isCurrent ? "rgba(242,169,59,0.10)" : NAVY_2,
+                                 border: `1px solid ${isCurrent ? GOLD : NAVY_3}`,
+                                 opacity: isFuture ? 0.55 : 1 }}>
+                        <div className="flex items-center justify-between mb-3">
+                          <div className="flex items-center gap-2.5">
+                            <div className="w-7 h-7 rounded-full flex items-center justify-center scoreboard-digit text-xs"
+                              style={{ backgroundColor: isCurrent ? GOLD : NAVY_3,
+                                       color: isCurrent ? NAVY : "#FFFFFF" }}>
+                              {p.n}
+                            </div>
+                            <Icon size={16} color={isCurrent ? GOLD : INK} />
+                            <span className="text-white font-semibold text-sm sm:text-base">{p.game}</span>
+                            <InfoTip text={p.rule} />
+                          </div>
+                          {isFuture && <Lock size={14} color={INK} />}
+                          {isPast && (
+                            <button onClick={() => resetFromRound(p.round)}
+                              className="flex items-center gap-1 text-xs" style={{ color: INK }}>
+                              <RotateCcw size={12} /> redo
+                            </button>
+                          )}
+                        </div>
+                        {isFuture && <p className="text-xs" style={{ color: INK }}>Complete the previous round first.</p>}
+                        {(isCurrent || isPast) && (
+                          <div className="flex flex-wrap gap-2">
+                            {eligibleThisRound.map(name => {
+                              const idx    = order.indexOf(name);
+                              const ranked = idx !== -1;
+                              const isOut  = eliminatedThisRound &&
+                                             eliminatedThisRound.name === name &&
+                                             order.length === eligibleThisRound.length;
+                              return (
+                                <button key={name}
+                                  onClick={() => isCurrent && clickPlayoffPlayer(p.round, name)}
+                                  disabled={!isCurrent || ranked}
+                                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-semibold"
+                                  style={{ backgroundColor: isOut ? "rgba(189,68,57,0.18)" : NAVY_3,
+                                           color: isOut ? RED : ranked ? "#FFFFFF" : INK,
+                                           border: isOut ? `1px solid ${RED}` : "1px solid transparent" }}>
+                                  {ranked && <span className="scoreboard-digit text-xs" style={{ color: GOLD }}>#{idx + 1}</span>}
+                                  {name}
+                                  {isOut && <span className="text-xs">OUT</span>}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+
+                  {/* FINAL */}
+                  {(() => {
+                    const p     = PLAYOFF_ROUNDS[5];
+                    const Icon  = p.icon;
+                    const ready = roundsResolved === 5 && alive.length === 2;
+                    return (
+                      <div className="rounded-xl p-4"
+                        style={{ backgroundColor: finalWinner ? "rgba(242,169,59,0.16)" :
+                                                  ready       ? "rgba(242,169,59,0.10)" : NAVY_2,
+                                 border: `1px solid ${ready || finalWinner ? GOLD : NAVY_3}`,
+                                 opacity: ready || finalWinner ? 1 : 0.55 }}>
+                        <div className="flex items-center justify-between mb-3">
+                          <div className="flex items-center gap-2.5">
+                            <Icon size={18} color={GOLD} />
+                            <span className="text-white font-semibold text-sm sm:text-base">{p.game}</span>
+                            <InfoTip text={p.rule} />
+                          </div>
+                          {!ready && !finalWinner && <Lock size={14} color={INK} />}
+                          {finalWinner && (
+                            <button onClick={() => setFinalWinner(null)}
+                              className="flex items-center gap-1 text-xs" style={{ color: INK }}>
+                              <RotateCcw size={12} /> redo
+                            </button>
+                          )}
+                        </div>
+                        {!ready && !finalWinner && <p className="text-xs" style={{ color: INK }}>Complete the previous round first.</p>}
+                        {ready && !finalWinner && (
+                          <div className="flex flex-wrap gap-2">
+                            {alive.map(name => (
+                              <button key={name} onClick={() => setFinalWinner(name)}
+                                className="px-4 py-2 rounded-lg text-sm font-bold"
+                                style={{ backgroundColor: NAVY_3, color: "#FFFFFF" }}>
+                                {name}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                        {finalWinner && (
+                          <div className="flex items-center gap-2 px-3 py-2 rounded-lg"
+                            style={{ backgroundColor: "rgba(242,169,59,0.2)" }}>
+                            <Crown size={18} color={GOLD} />
+                            <span className="display text-2xl" style={{ color: GOLD }}>{finalWinner} WINS IT ALL</span>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
+                </div>
+              </div>
+            )}
+
+            {/* ── SCOREBOARD ── */}
+            {tab === "scoreboard" && (
+              <div>
+                <SectionLabel>{finalWinner ? "FINAL STANDINGS" : "LIVE STANDINGS"}</SectionLabel>
+                {finalWinner && (
+                  <div className="rounded-xl p-4 mb-4 flex items-center gap-3"
+                    style={{ backgroundColor: "rgba(242,169,59,0.16)", border: `1px solid ${GOLD}` }}>
+                    <Crown size={24} color={GOLD} />
+                    <div>
+                      <div className="text-xs font-bold tracking-wide" style={{ color: GOLD }}>CHAMPION</div>
+                      <div className="display text-3xl" style={{ color: "#FFFFFF" }}>{finalWinner}</div>
+                    </div>
+                  </div>
+                )}
+                <div className="rounded-xl overflow-hidden" style={{ border: `1px solid ${NAVY_3}` }}>
+                  {[...alive]
+                    .sort((a, b) => cumulative[b] - cumulative[a] || regularSeasonPoints(b) - regularSeasonPoints(a))
+                    .map((name, i) => (
+                      <div key={name} className="flex items-center justify-between px-4 py-3"
+                        style={{ backgroundColor: i % 2 === 0 ? NAVY_2 : NAVY, borderBottom: `1px solid ${NAVY_3}` }}>
+                        <div className="flex items-center gap-3">
+                          <span className="scoreboard-digit text-xs w-5" style={{ color: INK }}>{i + 1}</span>
+                          <span className="text-white font-semibold text-sm sm:text-base">{name}</span>
+                          {name === finalWinner && <Crown size={14} color={GOLD} />}
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <span className="text-xs" style={{ color: INK }}>reg. {regularSeasonPoints(name)}</span>
+                          <span className="scoreboard-digit text-lg" style={{ color: GOLD }}>{cumulative[name]}</span>
+                        </div>
+                      </div>
+                    ))}
+                  {[...eliminated].sort((a, b) => b.round - a.round).map(e => (
+                    <div key={e.name} className="flex items-center justify-between px-4 py-3"
+                      style={{ backgroundColor: NAVY, opacity: 0.55 }}>
+                      <div className="flex items-center gap-3">
+                        <span className="text-xs" style={{ color: RED }}>OUT</span>
+                        <span className="text-white font-medium text-sm">{e.name}</span>
+                        <span className="text-xs" style={{ color: INK }}>round {e.round}</span>
+                      </div>
+                      <span className="scoreboard-digit text-sm" style={{ color: INK }}>{cumulative[e.name]}</span>
+                    </div>
+                  ))}
+                </div>
+                <div className="rounded-xl p-4 mt-4" style={{ backgroundColor: NAVY_2, border: `1px solid ${NAVY_3}` }}>
+                  <p style={{ color: INK }} className="text-xs leading-relaxed">
+                    Regular season: win = +3, loss = +0, sitting out = +0. Playoff: each round, points
+                    = field size minus your finish rank plus one, stacked onto your carried-forward
+                    total. Final round is winner-take-all.
+                  </p>
+                </div>
+                <button onClick={resetEverything}
+                  className="w-full mt-4 text-xs py-2 rounded-lg"
+                  style={{ color: INK, border: `1px solid ${NAVY_3}` }}>
+                  Reset all results
+                </button>
+              </div>
+            )}
+
+          </div>
+        </div>
+      );
+    }
+
+    // ── Mount ───────────────────────────────────────────────────────────────
+    ReactDOM.createRoot(document.getElementById("root")).render(<CatSkillGames />);
+
+    // ── Service Worker ──────────────────────────────────────────────────────
+    if ("serviceWorker" in navigator) {
+      window.addEventListener("load", () => {
+        navigator.serviceWorker.register("./sw.js").catch(() => {});
+      });
+    }
+  </script>
+</body>
+</html>
