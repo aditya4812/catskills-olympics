@@ -207,9 +207,9 @@
       }, [regularResults, playoffOrder, finalWinner]);
 
       const tabs = [
-        { id: "schedule",  label: "Schedule"   },
-        { id: "rules",     label: "Game Rules"  },
+        { id: "schedule",  label: "Regular Season" },
         { id: "playoffs",  label: "Playoffs"    },
+        { id: "rules",     label: "Game Rules"  },
         { id: "scoreboard",label: "Scoreboard"  },
       ];
 
@@ -319,7 +319,7 @@
             {/* ── SCHEDULE ── */}
             {tab === "schedule" && (
               <div>
-                <SectionLabel>REGULAR SEASON &middot; TAP THE WINNING SIDE</SectionLabel>
+                <SectionLabel>REGULAR SEASON &middot; TAP THE WINNING TEAM'S PLAYERS</SectionLabel>
                 <div className="space-y-3">
                   {SEASON.map(ev => {
                     const winners = regularResults[ev.id] || [];
